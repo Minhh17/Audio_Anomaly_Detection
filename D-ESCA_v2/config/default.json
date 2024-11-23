@@ -1,0 +1,80 @@
+{
+    "PREPROCESS": {
+        "TYPE": "mel",
+        "AUDIO_LEN": 2,
+        "SEGMENT_LEN": 2,
+        "SAMPLE_PER_FILE": 200,
+        "GAMMA": {
+            "WINDOW_TIME": 0.12,
+            "HOP_TIME": 0.06,
+            "CHANNELS": 32,
+            "F_MIN": 100
+        },
+        "MEL": {
+            "SR": 16000,
+            "NFFT": 2048,
+            "N_BANDS": 32
+        }
+    },
+    "DATASET": {
+        "PATH": {
+            "NORMAL": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_demo/park_Target3/normal",
+            "TEST": null,
+            "ANOMALY": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_demo/park_Target3/abnormal",
+            "TFRECORDS": ["/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_dataset_demo/mel_data"]
+        },
+        "RATIO": {
+            "TRAIN": 0.8,
+            "TEST": 0.1
+        },
+        "DATALOADER": {
+            "BATCH_SIZE": 128,
+            "SHUFFLE": true
+        }
+    },
+    "TRAINING": {
+        "LOG_FOLDER": "./Results/temp",
+        "EPOCH": 10,
+        "LEARNING_RATE": 0.001,
+        "PRETRAINED_WEIGHTS": "./Results/temp/saved_model",
+        "SAVE_PATH": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/./Results/base-training_results"
+    },
+    "TRANSFER_LEARNING": {
+        "TFRECORDS": ["./park_dataset_demo/target/Target3"],
+        "TEST_DIR": null,
+        "EPOCH": 81,
+        "LEARNING_RATE": 0.001,
+        "BASED_WEIGHTS": "./Results/tl-training_results/Target2/saved_model/vq_vae",
+        "SAVE_PATH": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/./Results/tl-training_results/Target2",
+        "BETA": 1.0,
+        "ANOM_BATCH_SIZE": 128
+    },
+    "MODEL": {
+        "TYPE": "vq_vae"
+    },
+    "POSTPROCESS": {
+        "PATH_SAVE_THRESHOLD": "/home/thanhho/SPARC/ESCA/Code/train_on_PCv2/Results/"
+    },
+    "REALTIME": {
+        "TRANSFER_LEARNING": false,
+        "LOG_PATH": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/Results/rt_test_results",
+        "MANUAL_THRESHOLD": 0.01,
+        "RUNTIME": 1000,
+        "DEVICE_INDEX_INPUT": 14,
+        "SECOND": 5,
+        "CHANNELS": 1,
+        "SAMPLING_RATE": 16000,
+        "IMPORT_FILE": false
+    },
+    "RECORD": {
+        "DATASET_PATH": "./dataset_mic_laptop_16k",
+        "ABNOMALY": false,
+        "DEVICE_INDEX_INPUT": 14,
+        "SECOND": 5,
+        "CHANNELS": 1,
+        "SAMPLING_RATE": 44100
+    },
+    "DEVICE": {
+        "JETSON": false
+    }
+}
