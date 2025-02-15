@@ -1,0 +1,33 @@
+DATASET:
+  PATH:
+    TFRECORDS : ['/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_dataset_demo/mel_data2']
+    NORMAL : '/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_demo/park_source/abnormal'
+    ANOMALY : '/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/park_demo/park_source/abnormal'
+    # TEST: '/home/thanhho/SPARC/ESCA/Code/Data/dev_data_fan/fan/source_test/Normal'
+
+TRAINING: 
+  SAVE_PATH : './Results/base_training_result'
+  EPOCH : 10
+
+TRANSFER_LEARNING: 
+  EPOCH : 81
+  TFRECORDS : ['/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/data/target/Target25']
+  BASED_WEIGHTS: './Results/base_training_result/saved_model/vq_vae'
+  SAVE_PATH: '/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/Results/tl-training_results/Target3'
+  
+REALTIME: 
+  DEVICE_INDEX_INPUT: 12
+  LOG_PATH: '/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/Results/rt_test_results'
+  TRANSFER_LEARNING: False
+  IMPORT_FILE : False
+  # MANUAL_THRESHOLD: 0.0
+
+RECORD: 
+  DEVICE_INDEX_INPUT: 12
+  ABNOMALY: False
+  SECOND: 2
+  DATASET_PATH: './dataset_mic_usb_16k'
+  SAMPLING_RATE: 16000
+
+DEVICE:
+  JETSON: False
