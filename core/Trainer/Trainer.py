@@ -259,5 +259,6 @@ class ModelTrainer():
 
         # Lưu model sau khi hoàn thành tất cả epoch
         self.model.save(join(self.log_dir, 'saved_model', self.model_name))
+        print("[FINISHED]")
 
 
