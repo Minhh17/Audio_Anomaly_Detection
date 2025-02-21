@@ -12,10 +12,10 @@ class TL_Trainer(ModelTrainer):
         # super().__init__(cfg)
         # self.model_name = cfg.MODEL.TYPE
         self.model_name = cfg.get('MODEL.TYPE')
-        print(f"Model name: {self.model_name}") 
+        # print(f"Model name: {self.model_name}") 
         # self.log_dir = cfg.TRANSFER_LEARNING.SAVE_PATH
         self.log_dir = cfg.get('TRANSFER_LEARNING.SAVE_PATH')
-        print(f"Model Dir: {self.log_dir}") 
+        # print(f"Model Dir: {self.log_dir}") 
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         # self.learning_rate = cfg.TRANSFER_LEARNING.LEARNING_RATE
@@ -48,7 +48,7 @@ class TL_Trainer(ModelTrainer):
         # self.based_model_path = cfg.TRANSFER_LEARNING.BASED_WEIGHTS \
         self.based_model_path = cfg.get('TRANSFER_LEARNING.BASED_WEIGHTS') \
             if from_config else kwargs['based_model']
-        print(f"Based model path: {self.based_model_path}")
+        # print(f"Based model path: {self.based_model_path}")
         # load the pretrained weights if transfer learning mode is on
         self.load_pretrained_weights(self.based_model_path)
         # tf.concat(temp, axis=0)
