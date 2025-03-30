@@ -209,7 +209,7 @@ class ModelTrainer():
             Parameters:
                 data_dict: a dict with (key, value) pair containing (data_part, tf.dataset)
         '''
-        data_num_dict = {part: self._get_number_of_samples(data_dict[part]) for part in ['train', 'test', 'val']}
+        # data_num_dict = {part: self._get_number_of_samples(data_dict[part]) for part in ['train', 'test', 'val']}
 
         for epoch in range(self.epochs):
             for part in ['train', 'val', 'test']:

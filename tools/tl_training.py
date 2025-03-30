@@ -6,6 +6,9 @@ import signal
 from os.path import join, isdir, dirname
 sys.path.append(os.getcwd())
 import tensorflow as tf
+
+print(tf.__version__)
+
 import numpy as np
 from core.DataLoader import Dataloader
 from core.Trainer import TL_Trainer

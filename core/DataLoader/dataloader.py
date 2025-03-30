@@ -35,6 +35,7 @@ class Dataloader(Feature_extractor):
         
         # self.base_tfrecord_list = cfg.DATASET.PATH.TFRECORDS
         self.base_tfrecord_list = cfg.get('DATASET.PATH.TFRECORDS')
+        print("DEBUG: self.base_tfrecord_list =", self.base_tfrecord_list) 
         # self.target_tfrecord_list = cfg.TRANSFER_LEARNING.TFRECORDS
         self.target_tfrecord_list = cfg.get('TRANSFER_LEARNING.TFRECORDS')
 
