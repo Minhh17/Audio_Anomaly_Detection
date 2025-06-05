@@ -21,7 +21,6 @@ from pydub import AudioSegment
 from pydub.utils import make_chunks
 from tqdm import tqdm
 import tensorflow as tf
-import tensorflow_io as tfio  # pip install tensorflow-io
 from gammatone import gtgram
 
 from helper.utils import read_file_name, extract_mbe  # project helpers
@@ -38,6 +37,7 @@ class Feature_extractor:
         dst: str | None = None,
         mode: str = "from_file",  # or "real_time"
         feat_type: str | None = None,  # "gamma" | "mel"
+        type: str | None = None,
         # dataset / chunk params
         segment_len: float | None = None,  # seconds per chunk
         audio_len: float | None = None,  # seconds per file (optional)
@@ -61,7 +61,8 @@ class Feature_extractor:
 
         # usage
         self.mode = mode
-        self.feat_type = feat_type  # will be set/validated later
+        # support legacy argument name "type"
+        self.feat_type = feat_type if feat_type is not None else type  # will be set/validated later
 
         # chunking
         self.audio_len = audio_len
@@ -190,8 +191,32 @@ class Feature_extractor:
             samples = samples.reshape((-1, seg.channels)).mean(axis=1)
         return samples, seg.frame_rate
 
+    @staticmethod
+    def _pcen_numpy(
+        S: np.ndarray,
+        sr: int,
+        hop_length: int,
+        time_constant: float = 0.06,
+        gain: float = 0.98,
+        bias: float = 2.0,
+        power: float = 0.5,
+        eps: float = 1e-6,
+    ) -> np.ndarray:
+        """Return PCEN of ``S`` computed via simple IIR smoothing.
+
+        Parameters ``S`` is a spectrogram with shape ``(T, C)`` where ``T`` is
+        the time dimension. ``sr`` and ``hop_length`` control the smoothing
+        coefficient. Implementation follows ``librosa.pcen``.
+        """
+        b = 1 - np.exp(-hop_length / (sr * time_constant))
+        M = np.zeros_like(S, dtype=np.float32)
+        M[0] = S[0]
+        for t in range(1, S.shape[0]):
+            M[t] = (1 - b) * M[t - 1] + b * S[t]
+        return ((S / (eps + M) ** gain + bias) ** power - bias ** power)
+
     def _get_gamma_feature(self, seg: AudioSegment) -> np.ndarray:
-        """Return log‑PCEN‑Gamma feature resized to *target_size* (C×T)."""
+        """Return denoised log‑PCEN Gamma spectrogram resized to ``target_size``."""
         wave, sr = self._waveform_from_audiosegment(seg)
         gtg = gtgram.gtgram(
             wave,
@@ -201,16 +226,16 @@ class Feature_extractor:
             self.channels,
             self.f_min,
         )  # shape (T, C)
-        # PCEN requires (time, freq)
-        pcen = tfio.audio.pcen(
-            tf.constant(gtg, dtype=tf.float32),
+        hop_length = int(self.hop_time * sr)
+        pcen = self._pcen_numpy(
+            gtg,
+            sr=sr,
+            hop_length=hop_length,
             time_constant=0.06,
-            smooth_coef=0.05,
             gain=0.98,
             bias=2.0,
             power=0.5,
-        ).numpy()  # (T, C)
-        pcen = pcen.T  # (C, T)
+        ).T  # (C, T)
 
         # subtract noise profile if provided
         if self.noise_profile is not None:

@@ -37,6 +37,14 @@ class ModelTrainer():
         self.pre_prc = Preprocessor(cfg)
         self.post_prc = Postprocessor(cfg)
 
+        # callbacks parameters
+        self.es_patience = 5
+        self.lr_patience = 2
+        self.lr_factor = 0.5
+        self._best_val = np.inf
+        self._es_wait = 0
+        self._lr_wait = 0
+
         # dict containing all neccessary fuctions
         self.impl_steps = {
             'train': self.train_step,
@@ -218,6 +226,7 @@ class ModelTrainer():
         # data_num_dict = {part: self._get_number_of_samples(data_dict[part]) for part in ['train', 'test', 'val']}
 
         for epoch in range(self.epochs):
+            val_total = None
             for part in ['train', 'val', 'test']:
                 sample_losses = []
                 sample_labels = []
@@ -244,10 +253,13 @@ class ModelTrainer():
                     sample_labels.append(label.numpy())
 
                 # Ghi log sau khi hoàn thành 1 phần (train/val/test)
-                self.impl_logs[part](preds=np.concatenate(sample_losses), 
-                                    labels=np.concatenate(sample_labels), 
-                                    metrics=metrics_value, 
+                self.impl_logs[part](preds=np.concatenate(sample_losses),
+                                    labels=np.concatenate(sample_labels),
+                                    metrics=metrics_value,
                                     epoch=epoch, datapart=part)
+
+                if part == 'val':
+                    val_total = float(metrics_value[0][1])
 
                 # Xử lý threshold sau khi test
                 if part == 'test':
@@ -259,6 +271,25 @@ class ModelTrainer():
 
                 # Reset metrics sau mỗi phần
                 self._reset_metrics()
+
+            if val_total is not None:
+                if val_total < self._best_val:
+                    self._best_val = val_total
+                    self._es_wait = 0
+                    self._lr_wait = 0
+                else:
+                    self._es_wait += 1
+                    self._lr_wait += 1
+                    if self._lr_wait >= self.lr_patience:
+                        old_lr = float(self.model.optimizer.learning_rate.numpy())
+                        new_lr = old_lr * self.lr_factor
+                        self.model.optimizer.learning_rate.assign(new_lr)
+                        self._lr_wait = 0
+                        print(f"[LR] Reduce learning rate to {new_lr}", flush=True)
+                if self._es_wait >= self.es_patience:
+                    print("[EARLY STOPPING]", flush=True)
+                    self.model.save(join(self.log_dir, 'saved_model', self.model_name))
+                    return
 
             # Hiển thị progress tổng sau mỗi epoch
             print(f"[EPOCH] {epoch+1}/{self.epochs}", flush=True)

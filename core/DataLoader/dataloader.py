@@ -8,19 +8,26 @@ from tqdm import tqdm
 import numpy as np
 from shutil import copy
 
+NOISE_PROFILE_PATH = os.path.join('data', 'gamma_noise_profile.npy')
+
 class Dataloader(Feature_extractor):
     def __init__(self, cfg):
+        profile = None
+        if os.path.isfile(NOISE_PROFILE_PATH):
+            profile = np.load(NOISE_PROFILE_PATH).astype('float32')
         super().__init__(
-            type=cfg.get('PREPROCESS.TYPE'), segment_len=cfg.get('PREPROCESS.SEGMENT_LEN'), \
-            # type=cfg.PREPROCESS.TYPE, segment_len=cfg.PREPROCESS.SEGMENT_LEN, \
-            audio_len=cfg.get('PREPROCESS.AUDIO_LEN'), sample_per_file=cfg.get('PREPROCESS.SAMPLE_PER_FILE'), \
-            # audio_len=cfg.PREPROCESS.AUDIO_LEN, sample_per_file=cfg.PREPROCESS.SAMPLE_PER_FILE, \
-            window_time=cfg.get('PREPROCESS.GAMMA.WINDOW_TIME'), hop_time=cfg.get('PREPROCESS.GAMMA.HOP_TIME'), \
-            # window_time=cfg.PREPROCESS.GAMMA.WINDOW_TIME, hop_time=cfg.PREPROCESS.GAMMA.HOP_TIME, \
-            channels=cfg.get('PREPROCESS.GAMMA.CHANNELS'), f_min=cfg.get('PREPROCESS.GAMMA.F_MIN'), \
-            # channels=cfg.PREPROCESS.GAMMA.CHANNELS, f_min=cfg.PREPROCESS.GAMMA.F_MIN, \
-            sr=cfg.get('PREPROCESS.MEL.SR'), nfft=cfg.get('PREPROCESS.MEL.NFFT'), n_mel_band=cfg.get('PREPROCESS.MEL.N_BANDS')
-            # sr=cfg.PREPROCESS.MEL.SR, nfft=cfg.PREPROCESS.MEL.NFFT, n_mel_band=cfg.PREPROCESS.MEL.N_BANDS
+            feat_type=cfg.get('PREPROCESS.TYPE'),
+            segment_len=cfg.get('PREPROCESS.SEGMENT_LEN'),
+            audio_len=cfg.get('PREPROCESS.AUDIO_LEN'),
+            sample_per_file=cfg.get('PREPROCESS.SAMPLE_PER_FILE'),
+            window_time=cfg.get('PREPROCESS.GAMMA.WINDOW_TIME'),
+            hop_time=cfg.get('PREPROCESS.GAMMA.HOP_TIME'),
+            channels=cfg.get('PREPROCESS.GAMMA.CHANNELS'),
+            f_min=cfg.get('PREPROCESS.GAMMA.F_MIN'),
+            sr=cfg.get('PREPROCESS.MEL.SR'),
+            nfft=cfg.get('PREPROCESS.MEL.NFFT'),
+            n_mel_band=cfg.get('PREPROCESS.MEL.N_BANDS'),
+            noise_profile=profile,
         )
 
         # some paths to data directories
@@ -163,7 +170,7 @@ class Dataloader(Feature_extractor):
                     chunks = make_chunks(audio, time_per_sample)
 
                     for index, item in enumerate(chunks):
-                        feature = self.feat_extr_func[self.type](item)
+                        feature = self.feat_extr_func[self.feat_type](item)
                         # print(feature)
                         feature_list.append(feature)
                         name = file.split('/')[-1]
@@ -277,12 +284,52 @@ class Dataloader(Feature_extractor):
         return  (tf.io.parse_tensor(parsed_sample['feature'], tf.float32), \
                 tf.io.parse_tensor(parsed_sample['label'], tf.int32), parsed_sample['idx'])
 
+    def _time_stretch(self, feature: tf.Tensor) -> tf.Tensor:
+        """Randomly stretch feature along time axis by ±5 %."""
+        scale = tf.random.uniform([], 0.95, 1.05)
+        new_t = tf.cast(scale * 32, tf.int32)
+        feat = tf.image.resize(feature[None, ..., None], [32, new_t], method='bilinear')[0, ..., 0]
+        feat = tf.cond(
+            new_t < 32,
+            lambda: tf.pad(feat, [[0, 0], [0, 32 - new_t]]),
+            lambda: feat[:, :32],
+        )
+        return feat
+
+    def _spec_augment(self, feature: tf.Tensor) -> tf.Tensor:
+        """Apply simple SpecAugment (time and frequency masking)."""
+        # frequency mask
+        f = tf.random.uniform([], 0, 4, dtype=tf.int32)
+        f0 = tf.random.uniform([], 0, 32 - f, dtype=tf.int32)
+        mask_f = tf.concat([
+            tf.ones([f0, 32]),
+            tf.zeros([f, 32]),
+            tf.ones([32 - f0 - f, 32])
+        ], axis=0)
+        feature = feature * mask_f
+        # time mask
+        t = tf.random.uniform([], 0, 4, dtype=tf.int32)
+        t0 = tf.random.uniform([], 0, 32 - t, dtype=tf.int32)
+        mask_t = tf.concat([
+            tf.ones([32, t0]),
+            tf.zeros([32, t]),
+            tf.ones([32, 32 - t0 - t])
+        ], axis=1)
+        return feature * mask_t
+
+    def _augment(self, feature, label, idx):
+        feature = self._time_stretch(feature)
+        feature = self._spec_augment(feature)
+        return feature, label, idx
+
     def create_dataloader(self, data_part, batch_size=None):
         abs_path = lambda x: os.path.join(self.tfrecord_dir[data_part], x)
         tfrecords_list = list(map(abs_path, os.listdir(self.tfrecord_dir[data_part])))
 
         dataset = tf.data.TFRecordDataset(tfrecords_list)
         parsed_dataset = dataset.map(self._parse_function)
+        if data_part == 'train':
+            parsed_dataset = parsed_dataset.map(self._augment, num_parallel_calls=tf.data.AUTOTUNE)
         bs = batch_size if batch_size else self.batch_size
         if self.shuffle:
             parsed_dataset = parsed_dataset.shuffle(buffer_size=1000)
