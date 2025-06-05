@@ -79,7 +79,7 @@
     "TRANSFER_LEARNING": {
         "ANOM_BATCH_SIZE": 128,
         "BASED_WEIGHTS": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/Results/base_training_result/saved_model/vq_vae",
-        "BETA": 1,
+        "BETA": 0.2,
         "EPOCH": 81,
         "LEARNING_RATE": 0.001,
         "SAVE_PATH": "/home/haiminh/Desktop/Anomaly_Detection/D-ESCA_v2/Results/tl-training_results/Target3",
