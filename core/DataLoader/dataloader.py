@@ -1,5 +1,6 @@
 from core.Preprocessing import Feature_extractor
 import tensorflow as tf
+import tensorflow_io as tfio
 import os
 from pydub import AudioSegment
 from pydub.utils import make_chunks
@@ -10,17 +11,17 @@ from shutil import copy
 
 class Dataloader(Feature_extractor):
     def __init__(self, cfg):
+        # load noise profile if available
+        np_path = os.path.join('data', 'gamma_noise_profile.npy')
+        noise_profile = np.load(np_path) if os.path.exists(np_path) else None
+
         super().__init__(
             type=cfg.get('PREPROCESS.TYPE'), segment_len=cfg.get('PREPROCESS.SEGMENT_LEN'), \
-            # type=cfg.PREPROCESS.TYPE, segment_len=cfg.PREPROCESS.SEGMENT_LEN, \
             audio_len=cfg.get('PREPROCESS.AUDIO_LEN'), sample_per_file=cfg.get('PREPROCESS.SAMPLE_PER_FILE'), \
-            # audio_len=cfg.PREPROCESS.AUDIO_LEN, sample_per_file=cfg.PREPROCESS.SAMPLE_PER_FILE, \
             window_time=cfg.get('PREPROCESS.GAMMA.WINDOW_TIME'), hop_time=cfg.get('PREPROCESS.GAMMA.HOP_TIME'), \
-            # window_time=cfg.PREPROCESS.GAMMA.WINDOW_TIME, hop_time=cfg.PREPROCESS.GAMMA.HOP_TIME, \
             channels=cfg.get('PREPROCESS.GAMMA.CHANNELS'), f_min=cfg.get('PREPROCESS.GAMMA.F_MIN'), \
-            # channels=cfg.PREPROCESS.GAMMA.CHANNELS, f_min=cfg.PREPROCESS.GAMMA.F_MIN, \
-            sr=cfg.get('PREPROCESS.MEL.SR'), nfft=cfg.get('PREPROCESS.MEL.NFFT'), n_mel_band=cfg.get('PREPROCESS.MEL.N_BANDS')
-            # sr=cfg.PREPROCESS.MEL.SR, nfft=cfg.PREPROCESS.MEL.NFFT, n_mel_band=cfg.PREPROCESS.MEL.N_BANDS
+            sr=cfg.get('PREPROCESS.MEL.SR'), nfft=cfg.get('PREPROCESS.MEL.NFFT'), n_mel_band=cfg.get('PREPROCESS.MEL.N_BANDS'),
+            noise_profile=noise_profile
         )
 
         # some paths to data directories
@@ -277,12 +278,28 @@ class Dataloader(Feature_extractor):
         return  (tf.io.parse_tensor(parsed_sample['feature'], tf.float32), \
                 tf.io.parse_tensor(parsed_sample['label'], tf.int32), parsed_sample['idx'])
 
+    def _augment(self, feature: tf.Tensor) -> tf.Tensor:
+        """Apply time-stretch and SpecAugment."""
+        # transpose to (time, freq)
+        spec = tf.transpose(feature)
+        # time-stretch
+        rate = tf.random.uniform([], 0.95, 1.05)
+        new_t = tf.cast(tf.round(rate * tf.cast(tf.shape(spec)[0], tf.float32)), tf.int32)
+        spec = tf.image.resize(spec[None, ..., None], [new_t, tf.shape(spec)[1]])[0, ..., 0]
+        spec = tf.image.resize_with_crop_or_pad(spec, 32, 32)
+        # SpecAugment
+        spec = tfio.audio.time_mask(spec, param=4)
+        spec = tfio.audio.freq_mask(spec, param=4)
+        return tf.transpose(spec)
+
     def create_dataloader(self, data_part, batch_size=None):
         abs_path = lambda x: os.path.join(self.tfrecord_dir[data_part], x)
         tfrecords_list = list(map(abs_path, os.listdir(self.tfrecord_dir[data_part])))
 
         dataset = tf.data.TFRecordDataset(tfrecords_list)
         parsed_dataset = dataset.map(self._parse_function)
+        if data_part == 'train':
+            parsed_dataset = parsed_dataset.map(lambda f, l, i: (self._augment(f), l, i))
         bs = batch_size if batch_size else self.batch_size
         if self.shuffle:
             parsed_dataset = parsed_dataset.shuffle(buffer_size=1000)
@@ -296,11 +313,12 @@ class Dataloader(Feature_extractor):
             print(f"Files read from {os.path.join(dir, data_part)}: {read_file_name(os.path.join(dir, data_part))}")
             tfrecords_list += read_file_name(os.path.join(dir, data_part))
         
-        return self.create_dataloader_from_files(tfrecords_list, batch_size)
-
-    def create_dataloader_from_files(self, list_of_files, batch_size=None):
+        return self.create_dataloader_from_files(tfrecords_list, batch_size, augment=(data_part=='train'))
+    def create_dataloader_from_files(self, list_of_files, batch_size=None, augment=False):
         dataset = tf.data.TFRecordDataset(list_of_files)
         parsed_dataset = dataset.map(self._parse_function)
+        if augment:
+            parsed_dataset = parsed_dataset.map(lambda f, l, i: (self._augment(f), l, i))
         bs = batch_size if batch_size else self.batch_size
         if self.shuffle:
             parsed_dataset = parsed_dataset.shuffle(buffer_size=1000)

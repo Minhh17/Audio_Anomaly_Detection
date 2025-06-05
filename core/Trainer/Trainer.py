@@ -33,6 +33,13 @@ class ModelTrainer():
         self._setup_logger()
         self._setup_metrics()
 
+        self.best_val_loss = np.inf
+        self.es_patience = 5
+        self.lr_patience = 5
+        self.lr_factor = 0.5
+        self.es_wait = 0
+        self.lr_wait = 0
+
         # a preprocessor and postprocessor
         self.pre_prc = Preprocessor(cfg)
         self.post_prc = Postprocessor(cfg)
@@ -244,10 +251,30 @@ class ModelTrainer():
                     sample_labels.append(label.numpy())
 
                 # Ghi log sau khi hoàn thành 1 phần (train/val/test)
-                self.impl_logs[part](preds=np.concatenate(sample_losses), 
-                                    labels=np.concatenate(sample_labels), 
-                                    metrics=metrics_value, 
+                self.impl_logs[part](preds=np.concatenate(sample_losses),
+                                    labels=np.concatenate(sample_labels),
+                                    metrics=metrics_value,
                                     epoch=epoch, datapart=part)
+
+                if part == 'val':
+                    val_loss = float([v.numpy() for k, v in metrics_value if k == 'total_loss'][0])
+                    if val_loss < self.best_val_loss:
+                        self.best_val_loss = val_loss
+                        self.es_wait = 0
+                        self.lr_wait = 0
+                    else:
+                        self.es_wait += 1
+                        self.lr_wait += 1
+                        if self.lr_wait >= self.lr_patience:
+                            lr = float(tf.keras.backend.get_value(self.model.optimizer.lr))
+                            new_lr = lr * self.lr_factor
+                            tf.keras.backend.set_value(self.model.optimizer.lr, new_lr)
+                            print(f"[LR] Reduce LR to {new_lr}")
+                            self.lr_wait = 0
+                        if self.es_wait >= self.es_patience:
+                            print("[EARLY STOP] Validation loss did not improve")
+                            self.model.save(join(self.log_dir, 'saved_model', self.model_name))
+                            return
 
                 # Xử lý threshold sau khi test
                 if part == 'test':
