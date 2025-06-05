@@ -6,6 +6,8 @@ from helper.parser import arg_parser
 from config import update_config, get_cfg_defaults
 import tensorflow as tf
 
+from config.config_manager import ConfigManager 
+
 # os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 gpus = tf.config.list_physical_devices('GPU')
@@ -23,9 +25,11 @@ if gpus:
 
 if __name__ == '__main__':
     # update config based on default.yaml file
-    cfg = get_cfg_defaults()
-    config_file = arg_parser('Create Dataloader for further uses.')
-    cfg = update_config(cfg, config_file)
+    # cfg = get_cfg_defaults()
+    # config_file = arg_parser('Create Dataloader for further uses.')
+    # cfg = update_config(cfg, config_file)
+
+    cfg = ConfigManager()
 
     # initiate a feature_extractor with all parameters from cfg
     data_loader = Dataloader(cfg)

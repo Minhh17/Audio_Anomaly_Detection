@@ -8,16 +8,22 @@ import os
 from os.path import join
 from os import makedirs
 import json
+from config.config_manager import ConfigManager 
 
 class ModelTrainer():
     def __init__(self, cfg):
         # important parameters for training
-        self.model_name = cfg.MODEL.TYPE 
-        self.log_dir = cfg.TRAINING.SAVE_PATH
+        # self.model_name = cfg.MODEL.TYPE 
+        self.model_name = cfg.get('MODEL.TYPE')
+        # self.log_dir = cfg.TRAINING.SAVE_PATH
+        self.log_dir = cfg.get('TRAINING.SAVE_PATH')
+        # Ensure the log directory exists
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-        self.epochs = cfg.TRAINING.EPOCH
-        self.learning_rate = cfg.TRAINING.LEARNING_RATE
+        # self.epochs = cfg.TRAINING.EPOCH
+        self.epochs = cfg.get('TRAINING.EPOCH')
+        # self.learning_rate = cfg.TRAINING.LEARNING_RATE
+        self.learning_rate = cfg.get('TRAINING.LEARNING_RATE')
         # self.theshold_save_path =  cfg.POSTPROCESS.PATH_SAVE_THRESHOLD
         self.theshold_save_path = join(self.log_dir,'save_parameter')
         makedirs(self.log_dir, exist_ok=True)

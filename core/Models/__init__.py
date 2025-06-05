@@ -6,7 +6,8 @@ def get_model(cfg):
     '''
         Use parameters from config file to load initiate the right model
     '''
-    name = cfg.MODEL.TYPE
+    # name = cfg.MODEL.TYPE
+    name = cfg.get('MODEL.TYPE')
     if name == 'vae':
         model = VariationalAutoEncoder(cfg.MODEL.VAE.OG_DIM)
     elif name == 'vq_vae':
